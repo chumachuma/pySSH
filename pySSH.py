@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import socket
 import threading
 import sys
@@ -17,6 +19,12 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
     def __init__(self):
         self.shortOptions = "ht:p:le:cu:"
         self.longOptions = ["help", "target", "port", "listen", "execute", "command", "upload"]
+        self.LISTEN = False
+        self.COMMAND = False
+        self.EXECUTE=""
+        self.TARGET = "0.0.0.0"
+        self.PORT = 8327
+        self.UPLOAD_DESTINATION = ""
     def usage(self, msg=None):
         LOG(self.__doc__)
         sys.exit(msg)
@@ -28,6 +36,11 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
         except getopt.GetoptError as optionError:
             self.usage(str(optionError))
         self.setArguments(opts)
+        if self.LISTEN:
+            s = server(self.TARGET, self.PORT)
+            s.start()
+        else:
+            client(self.TARGET, self.PORT)
     def setArguments(self, opts):
         for opt, arg in opts:
             if opt in ("-h", "--help"):
@@ -37,14 +50,11 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
             elif opt in ("-p", "--port"):
                 self.PORT = arg
             elif opt in ("-l", "--listen"):
-                s = server()
-                s.start()
-                #self.DO_LISTEN = True
+                self.LISTEN = True
             elif opt in ("-e", "--execute"):
-                client()
-                #self.EXECUTE = arg
+                self.EXECUTE = arg
             elif opt in ("-c", "--command"):
-                self.DO_COMMAND = True
+                self.COMMAND = True
             elif opt in ("-u", "--upload"):
                 self.UPLOAD_DESTINATION = arg
             else:
@@ -65,9 +75,9 @@ def getLocalHostInfo():
     LOG("Local host : %s:%s" % (host_name, host_IP))
     return (host_name, host_IP)
 
-def client():
-    target_host = "0.0.0.0"
-    target_port = 8327
+def client(ip, port):
+    target_host = ip
+    target_port = port
     client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     client.connect((target_host, target_port))
     client.send("Client says Hello World".encode())
@@ -76,9 +86,9 @@ def client():
 
 
 class server:
-    def __init__(self):
-        self.bind_ip = "0.0.0.0"
-        self.bind_port = 8327
+    def __init__(self, ip, port):
+        self.bind_ip = ip
+        self.bind_port = port
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server.bind((self.bind_ip, self.bind_port))
         self.server.listen(1)
