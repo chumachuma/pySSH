@@ -37,10 +37,13 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
             self.usage(str(optionError))
         self.setArguments(opts)
         if self.LISTEN:
-            s = server(self.TARGET, self.PORT)
-            s.start()
+            s = Server(self.TARGET, self.PORT)
+            s()
         else:
-            client(self.TARGET, self.PORT)
+            c = Client(self.TARGET, self.PORT)
+            c("Client says Hello World")
+            exit = Client(self.TARGET, self.PORT)
+            exit("exit")
     def setArguments(self, opts):
         for opt, arg in opts:
             if opt in ("-h", "--help"):
@@ -60,14 +63,14 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
             else:
                 self.usage("Error: Unhandled option, opt[%s], arg[%s]" % opt, arg)
 
-class logger:
+class Logger:
     TERMINAL = 0
     def __init__(self, mode=0):
         self.mode = mode
     def __call__(self, msg):
         if self.mode == self.TERMINAL:
             print(msg)
-LOG = logger()
+LOG = Logger()
 
 def getLocalHostInfo():
     host_name = socket.gethostname()
@@ -75,18 +78,25 @@ def getLocalHostInfo():
     LOG("Local host : %s:%s" % (host_name, host_IP))
     return (host_name, host_IP)
 
-def client(ip, port):
-    target_host = ip
-    target_port = port
-    client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    client.connect((target_host, target_port))
-    client.send("Client says Hello World".encode())
-    response = client.recv(4096)
-    LOG(response.decode())
-
-
-class server:
+class Client:
     def __init__(self, ip, port):
+        self.target_host = ip
+        self.target_port = port
+        self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.client.connect((self.target_host, self.target_port))
+    def __call__(self, msg):
+        self.client.send(msg.encode())
+        response = self.client.recv(4096)
+        LOG(response.decode())
+        self.exit() 
+    def exit(self):
+        self.client.shutdown(socket.SHUT_RDWR)
+        self.client.close()
+
+
+class Server:
+    def __init__(self, ip, port):
+        self.mainLoop = True
         self.bind_ip = ip
         self.bind_port = port
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -98,12 +108,25 @@ class server:
         LOG("[*] Received: %s" % request.decode())
         client_socket.send("ACK!".encode())
         client_socket.close()
-    def start(self):
-        while True:
+        if (request.decode() == "exit"):
+            self.exit()
+    def __call__(self):
+        while self.mainLoop:
             client, addr = self.server.accept()
             LOG("[*] Accepted connection from: %s:%d" % (addr[0], addr[1]))
             client_handler = threading.Thread(target=self.handle_client, args=(client,))
             client_handler.start()
+        else:
+            exit()
+    def exit(self):
+        self.mainLoop = False
+        try:
+            lastCall = Client(self.bind_ip, self.bind_port)
+            lastCall("exit succesful")
+        except ExceptionError:
+            LOG(ExceptionError)
+        self.server.shutdown(socket.SHUT_RDWR)
+        self.server.close()
             
 if __name__ == "__main__":
     ssh = pySSH()
