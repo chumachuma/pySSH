@@ -4,6 +4,7 @@ import socket
 import threading
 import sys
 import getopt
+import subprocess
 
 class pySSH:
     """
@@ -28,20 +29,22 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
     def usage(self, msg=None):
         LOG(self.__doc__)
         sys.exit(msg)
-    def __call__(self):
-        if not sys.argv[1:]:
+    def __call__(self, *args):
+        args = [arg for arg in args]
+        args.extend(sys.argv[1:])
+        if not args:
             self.usage("Error: No valid arguments supplied")
         try:
-            opts, args = getopt.getopt(sys.argv[1:], self.shortOptions, self.longOptions)
+            opts, args = getopt.getopt(args, self.shortOptions, self.longOptions)
         except getopt.GetoptError as optionError:
             self.usage(str(optionError))
         self.setArguments(opts)
         if self.LISTEN:
-            s = Server(self.TARGET, self.PORT)
-            s()
+            server = Server(self.TARGET, self.PORT)
+            server()
         else:
-            c = Client(self.TARGET, self.PORT)
-            c("Client says Hello World")
+            client = Client(self.TARGET, self.PORT)
+            client(self.EXECUTE)
             exit = Client(self.TARGET, self.PORT)
             exit("exit")
     def setArguments(self, opts):
@@ -70,6 +73,7 @@ class Logger:
     def __call__(self, msg):
         if self.mode == self.TERMINAL:
             print(msg)
+            return msg
 LOG = Logger()
 
 def getLocalHostInfo():
@@ -80,19 +84,40 @@ def getLocalHostInfo():
 
 class Client:
     def __init__(self, ip, port):
+        self.bufferSize = 4096
         self.target_host = ip
         self.target_port = port
         self.client = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.client.connect((self.target_host, self.target_port))
+        try:
+            self.client.connect((self.target_host, self.target_port))
+        except:
+            self.exit()
     def __call__(self, msg):
-        self.client.send(msg.encode())
-        response = self.client.recv(4096)
-        LOG(response.decode())
+        if msg:
+            self.client.send(msg.encode())
+            self.getResponse()
+        else:
+            self.console()
         self.exit() 
     def exit(self):
         self.client.shutdown(socket.SHUT_RDWR)
         self.client.close()
-
+    def getResponse(self):
+        response_length = self.bufferSize
+        response = ""
+        while response_length < self.bufferSize:
+            data = self.client.recv(self.bufferSize)
+            response_length = data.__len__()
+            response += data.decode()
+        return LOG(response)
+    def console(self):
+        while True:
+            msg = input("> ")
+            if msg.lower()=="exit":
+                break
+            self.client.send(msg.encode())
+            self.getResponse()
+            
 
 class Server:
     def __init__(self, ip, port):
@@ -124,9 +149,17 @@ class Server:
             lastCall = Client(self.bind_ip, self.bind_port)
             lastCall("exit succesful")
         except ExceptionError:
-            LOG(ExceptionError)
+            LOG(str(ExceptionError))
         self.server.shutdown(socket.SHUT_RDWR)
         self.server.close()
+    def run_command(self, command):
+        command = command.rstrip() #trim \n
+        output = None
+        try:
+            output = subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
+        except:
+            LOG("Error: failed to execute command [%s]" % command)
+        return output
             
 if __name__ == "__main__":
     ssh = pySSH()
