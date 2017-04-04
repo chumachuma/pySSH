@@ -68,12 +68,18 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
 
 class Logger:
     TERMINAL = 0
+    RAM = 1
     def __init__(self, mode=0):
         self.mode = mode
+        self.data = []
     def __call__(self, msg):
         if self.mode == self.TERMINAL:
             print(msg)
-            return msg
+        if self.mode == self.RAM:
+            self.data.append(msg)
+        return msg
+    def clear(self):
+        self.data.clear()
 LOG = Logger()
 
 def getLocalHostInfo():
