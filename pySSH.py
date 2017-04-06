@@ -3,6 +3,7 @@
 import socket
 import threading
 import sys
+import os
 import getopt
 import subprocess
 
@@ -128,9 +129,6 @@ class Client:
     def console(self):
         while True:
             prompt = self.getResponse()
-            while not prompt:
-                print("here")
-                prompt = self.getResponse()
             msg = input(prompt)
             self.client.send((msg+'\n').encode())
             if msg.lower()==CLIENT_EXIT:
@@ -194,6 +192,8 @@ class Server:
             if request.lower() == CLIENT_EXIT:
                 break
             response = self.runCommand(request).decode("utf-8")
+            if request.split(' ')[0] == "cd":
+                os.chdir(" ".join(request.split(' ')[1:]))
             if not response:
                 response = " "
             self.sendMessageToClient(client_socket, response);
