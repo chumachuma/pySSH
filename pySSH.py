@@ -8,6 +8,7 @@ import subprocess
 
 SERVER_SHUTDOWN = "request server shutdown"
 CLIENT_EXIT     = "client exit"
+MESSAGE_RECEIVED= "1"
 
 class pySSH:
     """
@@ -120,14 +121,17 @@ class Client:
         #    response_length = data.__len__()
         #    response += data.decode()
         #    print(data, "getting response")
-        print("getResponse", response)
+        self.acknowledge()
         return response
+    def acknowledge(self):
+        self.client.send(MESSAGE_RECEIVED.encode())
     def console(self):
         while True:
             prompt = self.getResponse()
-            print(prompt.encode())
+            while not prompt:
+                print("here")
+                prompt = self.getResponse()
             msg = input(prompt)
-            print((msg+'\n').encode())
             self.client.send((msg+'\n').encode())
             if msg.lower()==CLIENT_EXIT:
                 break
@@ -178,7 +182,7 @@ class Server:
         return output
     def console(self, client_socket):
         while True:
-            client_socket.send(self.prompt)
+            self.sendMessageToClient(client_socket, self.prompt);
             request = ""
             while '\n' not in request:
                 request += client_socket.recv(self.bufferSize).decode()
@@ -192,10 +196,17 @@ class Server:
             response = self.runCommand(request).decode("utf-8")
             if not response:
                 response = " "
-            client_socket.send(response.encode())
-        print("-----------------------")
+            self.sendMessageToClient(client_socket, response);
         client_socket.close()
-            
+    def sendMessageToClient(self, client_socket, msg):
+        acknowledgement = False
+        while not acknowledgement:
+            try:
+                client_socket.send(msg.encode())
+            except:
+                client_socket.send(msg)
+            acknowledgement = client_socket.recv(self.bufferSize).decode() == MESSAGE_RECEIVED
+
 if __name__ == "__main__":
     ssh = pySSH()
     ssh()
