@@ -6,6 +6,9 @@ import sys
 import getopt
 import subprocess
 
+SERVER_SHUTDOWN = "request server shutdown"
+CLIENT_EXIT     = "client exit"
+
 class pySSH:
     """
 Python NetCal Tool
@@ -45,8 +48,6 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
         else:
             client = Client(self.TARGET, self.PORT)
             client(self.EXECUTE)
-            exit = Client(self.TARGET, self.PORT)
-            exit("exit")
     def setArguments(self, opts):
         for opt, arg in opts:
             if opt in ("-h", "--help"):
@@ -54,7 +55,7 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
             elif opt in ("-t", "--target"):
                 self.TARGET = arg 
             elif opt in ("-p", "--port"):
-                self.PORT = arg
+                self.PORT = int(arg)
             elif opt in ("-l", "--listen"):
                 self.LISTEN = True
             elif opt in ("-e", "--execute"):
@@ -100,8 +101,10 @@ class Client:
             self.exit()
     def __call__(self, msg):
         if msg:
+            msg+='\n'
             self.client.send(msg.encode())
             self.getResponse()
+            print("--------")
         else:
             self.console()
         self.exit() 
@@ -111,22 +114,32 @@ class Client:
     def getResponse(self):
         response_length = self.bufferSize
         response = ""
-        while response_length < self.bufferSize:
-            data = self.client.recv(self.bufferSize)
-            response_length = data.__len__()
-            response += data.decode()
-        return LOG(response)
+        response = self.client.recv(4096).decode()
+        #while response_length < self.bufferSize:
+        #    data = self.client.recv(self.bufferSize)
+        #    response_length = data.__len__()
+        #    response += data.decode()
+        #    print(data, "getting response")
+        print("getResponse", response)
+        return response
     def console(self):
         while True:
-            msg = input("> ")
-            if msg.lower()=="exit":
+            prompt = self.getResponse()
+            print(prompt.encode())
+            msg = input(prompt)
+            print((msg+'\n').encode())
+            self.client.send((msg+'\n').encode())
+            if msg.lower()==CLIENT_EXIT:
                 break
-            self.client.send(msg.encode())
-            self.getResponse()
+            if msg.lower()==SERVER_SHUTDOWN:
+                break
+            LOG(self.getResponse())
             
 
 class Server:
     def __init__(self, ip, port):
+        self.bufferSize = 1024
+        self.prompt = "pySSH> ".encode()
         self.mainLoop = True
         self.bind_ip = ip
         self.bind_port = port
@@ -135,12 +148,7 @@ class Server:
         self.server.listen(1)
         LOG("[*] Listening on %s:%d" % (self.bind_ip, self.bind_port))
     def handle_client(self, client_socket):
-        request = client_socket.recv(1024)
-        LOG("[*] Received: %s" % request.decode())
-        client_socket.send("ACK!".encode())
-        client_socket.close()
-        if (request.decode() == "exit"):
-            self.exit()
+        self.console(client_socket)
     def __call__(self):
         while self.mainLoop:
             client, addr = self.server.accept()
@@ -158,14 +166,35 @@ class Server:
             LOG(str(ExceptionError))
         self.server.shutdown(socket.SHUT_RDWR)
         self.server.close()
-    def run_command(self, command):
+    def runCommand(self, command):
         command = command.rstrip() #trim \n
         output = None
         try:
             output = subprocess.check_output(command, stderr=subprocess.STDOUT, shell=True)
-        except:
+            LOG(output.decode())
+        except subprocess.CalledProcessError as subprocessException:
             LOG("Error: failed to execute command [%s]" % command)
+            output = subprocessException.output
         return output
+    def console(self, client_socket):
+        while True:
+            client_socket.send(self.prompt)
+            request = ""
+            while '\n' not in request:
+                request += client_socket.recv(self.bufferSize).decode()
+            request = request.rstrip()
+            LOG("[*] Received: %s" % request)
+            if request.lower() == SERVER_SHUTDOWN:
+                self.exit()
+                break
+            if request.lower() == CLIENT_EXIT:
+                break
+            response = self.runCommand(request).decode("utf-8")
+            if not response:
+                response = " "
+            client_socket.send(response.encode())
+        print("-----------------------")
+        client_socket.close()
             
 if __name__ == "__main__":
     ssh = pySSH()
