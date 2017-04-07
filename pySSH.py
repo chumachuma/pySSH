@@ -197,13 +197,16 @@ class Server:
             if request.lower() == CLIENT_EXIT:
                 client_socket.close()
                 return
-            response = self.runCommand(request).decode("utf-8")
-            if request.split(' ')[0] == "cd":
-                os.chdir(" ".join(request.split(' ')[1:]))
-            if not response:
-                response = " "
+            response = self.commandParser(request)
             self.sendMessageToClient(client_socket, response);
+    def commandParser(self, request):
+        if request.split(' ')[0] == "cd":
+            return os.chdir(" ".join(request.split(' ')[1:]))
+        else:
+            return self.runCommand(request).decode("utf-8")
     def sendMessageToClient(self, client_socket, msg):
+        if not msg:
+            msg = " "
         acknowledgement = False
         while not acknowledgement:
             try:
