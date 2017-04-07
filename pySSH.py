@@ -106,7 +106,6 @@ class Client:
             msg+='\n'
             self.client.send(msg.encode())
             self.getResponse()
-            print("--------")
         else:
             self.console()
         self.exit() 
@@ -163,8 +162,10 @@ class Server:
         self.mainLoop = False
         try:
             lastCall = Client(self.bind_ip, self.bind_port)
-            lastCall("exit succesful")
-        except ExceptionError:
+            a = lastCall.getResponse()
+            lastCall.client.send(CLIENT_EXIT.encode())
+            lastCall.exit()
+        except Exception as ExceptionError:
             LOG(str(ExceptionError))
         self.server.shutdown(socket.SHUT_RDWR)
         self.server.close()
@@ -179,6 +180,9 @@ class Server:
             output = subprocessException.output
         return output
     def console(self, client_socket):
+        if not self.mainLoop:
+            client_socket.close()
+            return
         while True:
             self.sendMessageToClient(client_socket, self.prompt);
             request = ""
@@ -187,24 +191,26 @@ class Server:
             request = request.rstrip()
             LOG("[*] Received: %s" % request)
             if request.lower() == SERVER_SHUTDOWN:
+                client_socket.close()
                 self.exit()
-                break
+                return
             if request.lower() == CLIENT_EXIT:
-                break
+                client_socket.close()
+                return
             response = self.runCommand(request).decode("utf-8")
             if request.split(' ')[0] == "cd":
                 os.chdir(" ".join(request.split(' ')[1:]))
             if not response:
                 response = " "
             self.sendMessageToClient(client_socket, response);
-        client_socket.close()
     def sendMessageToClient(self, client_socket, msg):
         acknowledgement = False
         while not acknowledgement:
             try:
-                client_socket.send(msg.encode())
+                msg = msg.encode()
             except:
-                client_socket.send(msg)
+                pass
+            client_socket.send(msg)
             acknowledgement = client_socket.recv(self.bufferSize).decode() == MESSAGE_RECEIVED
 
 if __name__ == "__main__":
