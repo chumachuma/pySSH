@@ -115,12 +115,10 @@ class Client:
     def getResponse(self):
         response_length = self.bufferSize
         response = ""
-        response = self.client.recv(4096).decode()
-        #while response_length < self.bufferSize:
-        #    data = self.client.recv(self.bufferSize)
-        #    response_length = data.__len__()
-        #    response += data.decode()
-        #    print(data, "getting response")
+        while self.bufferSize <= response_length:
+            data = self.client.recv(self.bufferSize)
+            response_length = data.__len__()
+            response += data.decode()
         self.acknowledge()
         return response
     def acknowledge(self):
