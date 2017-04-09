@@ -6,6 +6,7 @@ import sys
 import os
 import getopt
 import subprocess
+import time
 
 SERVER_SHUTDOWN = "request server shutdown"
 CLIENT_EXIT     = "client exit"
@@ -103,9 +104,17 @@ class Client:
             self.exit()
     def __call__(self, msg):
         if msg:
-            msg+='\n'
-            self.client.send(msg.encode())
+            #TODO
             self.getResponse()
+            time.sleep(0.025)#dischard prompt
+            self.client.send((msg+'\n').encode())
+            if msg.lower()==SERVER_SHUTDOWN:
+                self.exit()
+                return
+            LOG(self.getResponse())
+            self.getResponse()#dischard prompt
+            time.sleep(0.025)
+            self.client.send((CLIENT_EXIT+'\n').encode())
         else:
             self.console()
         self.exit() 
@@ -139,7 +148,7 @@ class Server:
     def __init__(self, ip, port):
         self.bufferSize = 1024
         self.prompt = "pySSH> ".encode()
-        self.mainLoop = True
+        self.mainLoop = False 
         self.bind_ip = ip
         self.bind_port = port
         self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -149,6 +158,7 @@ class Server:
     def handle_client(self, client_socket):
         self.console(client_socket)
     def __call__(self):
+        self.mainLoop = True 
         while self.mainLoop:
             client, addr = self.server.accept()
             LOG("[*] Accepted connection from: %s:%d" % (addr[0], addr[1]))
@@ -157,16 +167,19 @@ class Server:
         else:
             exit()
     def exit(self):
+        if self.mainLoop:
+            self.mainLoopExitSequence()
+        self.server.shutdown(socket.SHUT_RDWR)
+        self.server.close()
+    def mainLoopExitSequence(self):
         self.mainLoop = False
         try:
             lastCall = Client(self.bind_ip, self.bind_port)
-            a = lastCall.getResponse()
+            lastCall.getResponse()
             lastCall.client.send(CLIENT_EXIT.encode())
             lastCall.exit()
         except Exception as ExceptionError:
-            LOG(str(ExceptionError))
-        self.server.shutdown(socket.SHUT_RDWR)
-        self.server.close()
+            LOG("Error mainLoopExitSequence [%s]" % str(ExceptionError))
     def runCommand(self, command):
         command = command.rstrip() #trim \n
         output = None
