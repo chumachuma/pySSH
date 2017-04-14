@@ -11,6 +11,8 @@ import time
 SERVER_SHUTDOWN = "request server shutdown"
 CLIENT_EXIT     = "client exit"
 MESSAGE_RECEIVED= "1"
+UPLOAD_FILE = "upload"
+DOWNLOAD_FILE = "download"
 
 class pySSH:
     """
@@ -70,6 +72,7 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
             else:
                 self.usage("Error: Unhandled option, opt[%s], arg[%s]" % opt, arg)
 
+
 class Logger:
     TERMINAL = 0
     RAM = 1
@@ -86,11 +89,13 @@ class Logger:
         self.data.clear()
 LOG = Logger()
 
+
 def getLocalHostInfo():
     host_name = socket.gethostname()
     host_IP = socket.gethostbyname(hostname)
     LOG("Local host : %s:%s" % (host_name, host_IP))
     return (host_name, host_IP)
+
 
 class Client:
     def __init__(self, ip, port):
@@ -141,7 +146,15 @@ class Client:
                 break
             if msg.lower()==SERVER_SHUTDOWN:
                 break
-            LOG(self.getResponse())
+            commands = msg.split(' ')
+            if commands[0] == UPLOAD_FILE:
+                filemanager = FileSender()
+                filemanager.sendFile(self.client, commands[1])#TOD Verify commands have two args
+            elif commands[0] == DOWNLOAD_FILE:
+                filemanager = FileSender()
+                filemanager.receiveFile(self.client, commands[-1])#TOD Verify commands have two args
+            else:
+                LOG(self.getResponse())
             
 
 class Server:
@@ -208,13 +221,22 @@ class Server:
             if request.lower() == CLIENT_EXIT:
                 client_socket.close()
                 return
-            response = self.commandParser(request)
+            self.commandParser(request, client_socket)
+    def commandParser(self, request, client_socket):
+        commands = request.split(' ')
+        response = None
+        if commands[0] == UPLOAD_FILE:
+            filemanager = FileSender()
+            filemanager.receiveFile(client_socket, commands[-1])#TOD Verify commands have two args
+        elif commands[0] == DOWNLOAD_FILE:
+            filemanager = FileSender()
+            filemanager.sendFile(client_socket, commands[1])#TOD Verify commands have two args
+        elif commands[0] == "cd":
+            response = os.chdir(" ".join(request.split(' ')[1:]))
             self.sendMessageToClient(client_socket, response);
-    def commandParser(self, request):
-        if request.split(' ')[0] == "cd":
-            return os.chdir(" ".join(request.split(' ')[1:]))
         else:
-            return self.runCommand(request).decode("utf-8")
+            respose = self.runCommand(request).decode("utf-8")
+            self.sendMessageToClient(client_socket, response);
     def sendMessageToClient(self, client_socket, msg):
         if not msg:
             msg = " "
@@ -226,6 +248,21 @@ class Server:
                 pass
             client_socket.send(msg)
             acknowledgement = client_socket.recv(self.bufferSize).decode() == MESSAGE_RECEIVED
+
+class FileSender:
+    def __init__(self):
+        self.receiveBufferSize = 4096
+    def sendFile(self, targetSocket, filename):
+        with open(filename, "rb") as inputFile:
+            data = inputFile.read()
+            targetSocket.send(data)
+    def receiveFile(self, targetSocket, filename):
+        with open(filename, "wb") as outputFile:
+            response_length = self.receiveBufferSize
+            while self.receiveBufferSize <= response_length:
+                data = targetSocket.recv(self.receiveBufferSize)
+                outputFile.write(data)
+
 
 if __name__ == "__main__":
     ssh = pySSH()
