@@ -130,7 +130,6 @@ class Client:
         response_length = self.bufferSize
         response = ""
         while self.bufferSize <= response_length:
-            print(2)
             data = self.client.recv(self.bufferSize)
             response_length = data.__len__()
             response += data.decode()
@@ -236,7 +235,7 @@ class Server:
             response = os.chdir(" ".join(request.split(' ')[1:]))
             self.sendMessageToClient(client_socket, response);
         else:
-            respose = self.runCommand(request).decode("utf-8")
+            response = self.runCommand(request)
             self.sendMessageToClient(client_socket, response);
     def sendMessageToClient(self, client_socket, msg):
         if not msg:
