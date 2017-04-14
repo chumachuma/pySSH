@@ -130,6 +130,7 @@ class Client:
         response_length = self.bufferSize
         response = ""
         while self.bufferSize <= response_length:
+            print(2)
             data = self.client.recv(self.bufferSize)
             response_length = data.__len__()
             response += data.decode()
@@ -247,7 +248,12 @@ class Server:
             except:
                 pass
             client_socket.send(msg)
-            acknowledgement = client_socket.recv(self.bufferSize).decode() == MESSAGE_RECEIVED
+            try:
+                client_socket.settimeout(0.7)
+                acknowledgement = client_socket.recv(self.bufferSize).decode() == MESSAGE_RECEIVED
+                client_socket.settimeout(None)
+            except:
+                pass
 
 class FileSender:
     def __init__(self):
@@ -261,6 +267,7 @@ class FileSender:
             response_length = self.receiveBufferSize
             while self.receiveBufferSize <= response_length:
                 data = targetSocket.recv(self.receiveBufferSize)
+                response_length = data.__len__()
                 outputFile.write(data)
 
 
