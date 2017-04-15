@@ -7,6 +7,9 @@ import os
 import getopt
 import subprocess
 import time
+import getHost
+
+print(getHost.get_lan_ip())
 
 SERVER_SHUTDOWN = "request server shutdown"
 CLIENT_EXIT     = "client exit"
