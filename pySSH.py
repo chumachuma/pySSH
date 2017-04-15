@@ -92,7 +92,7 @@ LOG = Logger()
 
 def getLocalHostInfo():
     host_name = socket.gethostname()
-    host_IP = socket.gethostbyname(hostname)
+    host_IP = socket.gethostbyname(host_name)
     LOG("Local host : %s:%s" % (host_name, host_IP))
     return (host_name, host_IP)
 
@@ -159,6 +159,7 @@ class Client:
 
 class Server:
     def __init__(self, ip, port):
+        getLocalHostInfo()
         self.bufferSize = 1024
         self.prompt = "pySSH> ".encode()
         self.mainLoop = False 
