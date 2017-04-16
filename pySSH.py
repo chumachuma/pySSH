@@ -24,10 +24,11 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
   -c --command                      initilize command shell
   -u --upload=destination           upload file to [destination] upon receiving 
                                     connection
+  -s --show                         show host name and ip
 """
     def __init__(self):
-        self.shortOptions = "ht:p:le:cu:"
-        self.longOptions = ["help", "target", "port", "listen", "execute", "command", "upload"]
+        self.shortOptions = "ht:p:le:cu:-s"
+        self.longOptions = ["help", "target", "port", "listen", "execute", "command", "upload", "show"]
         self.LISTEN = False
         self.COMMAND = False
         self.EXECUTE=""
@@ -69,6 +70,8 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
                 self.COMMAND = True
             elif opt in ("-u", "--upload"):
                 self.UPLOAD_DESTINATION = arg
+            elif opt in ("-s", "--show"):
+                getLocalHostInfo()
             else:
                 self.usage("Error: Unhandled option, opt[%s], arg[%s]" % opt, arg)
 
@@ -93,7 +96,10 @@ LOG = Logger()
 def getLocalHostInfo():
     host_name = socket.gethostname()
     host_IP = socket.gethostbyname(host_name)
-    LOG("Local host : %s:%s" % (host_name, host_IP))
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    s.connect(('8.8.8.8', 1))  # connect() for UDP doesn't send packets
+    local_ip_address = s.getsockname()[0]
+    LOG("Local host : %s:%s\t%s" % (host_name, host_IP, local_ip_address))
     return (host_name, host_IP)
 
 
@@ -159,7 +165,6 @@ class Client:
 
 class Server:
     def __init__(self, ip, port):
-        getLocalHostInfo()
         self.bufferSize = 1024
         self.prompt = "pySSH> ".encode()
         self.mainLoop = False 
