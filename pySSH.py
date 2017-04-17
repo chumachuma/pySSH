@@ -24,11 +24,12 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
   -c --command                      initilize command shell
   -u --upload=destination           upload file to [destination] upon receiving 
                                     connection
-  -s --show                         show host name and ip
+  -d --display                      show host name and ip
+  -s --scan=scan_range              scan local network ips
 """
     def __init__(self):
-        self.shortOptions = "ht:p:le:cu:-s"
-        self.longOptions = ["help", "target", "port", "listen", "execute", "command", "upload", "show"]
+        self.shortOptions = "ht:p:le:cu:ds:"
+        self.longOptions = ["help", "=target", "=port", "listen", "=execute", "command", "=upload", "display", "=scan"]
         self.LISTEN = False
         self.COMMAND = False
         self.EXECUTE=""
@@ -70,8 +71,11 @@ Usage: python pySSH.py -t target_host -p port [OPTIONS]
                 self.COMMAND = True
             elif opt in ("-u", "--upload"):
                 self.UPLOAD_DESTINATION = arg
-            elif opt in ("-s", "--show"):
+            elif opt in ("-d", "--display"):
                 getLocalHostInfo()
+            elif opt in ("-s", "--scan"):
+                scanLocalNetworkByIP(int(arg))
+                sys.exit(0)
             else:
                 self.usage("Error: Unhandled option, opt[%s], arg[%s]" % opt, arg)
 
@@ -100,7 +104,29 @@ def getLocalHostInfo():
     s.connect(('8.8.8.8', 1))  # connect() for UDP doesn't send packets
     local_ip_address = s.getsockname()[0]
     LOG("Local host : %s:%s\t%s" % (host_name, host_IP, local_ip_address))
-    return (host_name, host_IP)
+    return (host_name, host_IP, local_ip_address)
+
+def ping(ip):
+    FNULL = open(os.devnull, 'w')
+    return subprocess.call(["ping -c 1 " + ip], stdout=FNULL, stderr=subprocess.STDOUT, shell=True)
+
+def addIP(ip, foundIP):
+    if (ping(ip) == 0):
+        foundIP.append(ip)
+
+def scanLocalNetworkByIP(ipRange=50):
+    local = getLocalHostInfo()
+    ip = '.'.join(local[2].split('.')[:-1]) + '.'
+    foundIP = []
+    addingIPs = []
+    for i in range(ipRange):
+        addingIPs.append(threading.Thread(target=addIP, args=(ip+str(i),foundIP)))
+        addingIPs[i].start()
+    for addingIP in addingIPs:
+        addingIP.join()
+    for ip in foundIP:
+        LOG(ip)
+    return foundIP
 
 
 class Client:
